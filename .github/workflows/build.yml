@@ -1,5 +1,4 @@
 
-
 name: Build Black Panther APK
 
 on:
@@ -36,13 +35,53 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
-      - name: Extract project
+      - name: Install image tools
+        run: python3 -m pip install Pillow
+
+      - name: Extract Android project
         run: |
           unzip -q Black-Panther-Android-Studio-1.zip
           test -d black-panther-android
 
+      - name: Apply Black Panther logo
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+
+          source = Image.open("launcher-icon.png").convert("RGBA")
+
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192,
+          }
+
+          res = Path("black-panther-android/app/src/main/res")
+
+          for folder, size in sizes.items():
+              target = res / folder
+              target.mkdir(parents=True, exist_ok=True)
+
+              icon = source.resize(
+                  (size, size),
+                  Image.Resampling.LANCZOS
+              )
+
+              icon.save(target / "ic_launcher.png")
+              icon.save(target / "ic_launcher_round.png")
+          PY
+
       - name: Build APK
         run: gradle -p black-panther-android assembleDebug
+
+      - name: Verify APK
+        run: |
+          APK="black-panther-android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
